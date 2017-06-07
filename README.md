@@ -1,53 +1,113 @@
-#**Finding Lane Lines on the Road** 
-[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+# **Finding Lane Lines on the Road** 
 
-<img src="examples/laneLines_thirdPass.jpg" width="480" alt="Combined Image" />
+## Goals/ Steps
+* Make a pipeline that finds lane lines on the road
+* Reflect on your work in a written report
 
-Overview
+
+[//]: # (Image References)
+
+[image1]: ./test_images_output/regioned.png "Region Filter"
+[image2]: ./test_images_output/colored.png "Color Filter"
+[image3]: ./test_images_output/edged.png "Canny Edge Filter"
+[image4]: ./test_images_output/houghed.png "Hough Line Filter"
+[image5]: ./test_images_output/lined.png "Extended Lines"
+[image6]: ./test_images_output/overlayed.png "Final Weighted Image"
+
+
 ---
 
-When we drive, we use our eyes to decide where to go.  The lines on the road that show us where the lanes are act as our constant reference for where to steer the vehicle.  Naturally, one of the first things we would like to do in developing a self-driving car is to automatically detect lane lines using an algorithm.
+## Reflection
 
-In this project you will detect lane lines in images using Python and OpenCV.  OpenCV means "Open-Source Computer Vision", which is a package that has many useful tools for analyzing images.  
+### 1. Describe your pipeline. As part of the description, explain how you modified the draw_lines() function.
 
-To complete the project, two files will be submitted: a file containing project code and a file containing a brief write up explaining your solution. We have included template files to be used both for the [code](https://github.com/udacity/CarND-LaneLines-P1/blob/master/P1.ipynb) and the [writeup](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md).The code file is called P1.ipynb and the writeup template is writeup_template.md 
+Pipeline: Region -> Color -> Canny Edge -> Hough Transform -> Extend lines -> Overlay
 
-To meet specifications in the project, take a look at the requirements in the [project rubric](https://review.udacity.com/#!/rubrics/322/view)
+My pipeline consisted of four steps: a region mask, a color filter, canny edge detection,
+and a hough line transform. It also remembers the previous frame's lane positions in case
+the right, left, or both lane markers are not found in the image. Since the lanes do not move much between frames,
+this was used a safeguard when the pipeline failed to find the lane markers; this seemed to only happen with shadows or a few times when the segmented lane markers were missed. I initially used a grayscale conversion,
+but after some testing, I found out that just using the color mask for white and yellow
+worked much better for the optional challenge than using grayscale. After each
+step in the pipeline, an image is shown as an example, specifically, yellowcurve2.jpg.
+
+I first started by using a region mask to black out everything not inside a quadrilateral.
+I used percentages rather than pixels to make it more robust; which helped
+for the optional challenge. I removed a small portion of the bottom to eliminate the car's
+hood in the challenge video.
+
+![alt text][image1]
+
+Second, I applied a color filter to eliminate anything not yellow or white. This filter
+helped with the challenge video as the change in road color was throwing off my previous
+pipeline that used a grayscale conversion. Now with these two filters, the images were
+just lane makers and the rest of the image was black. Also, without this filter being
+second in the pipeline, the Canny Edge detector would output horizontal lines from the
+shadows of the trees in the challenge video.
+
+![alt text][image2]
+
+Third, I used Canny Edge detection to find the edges of the lane marks. Using simple
+statistics, I could the function choose appropriate parameters for cv2 Canny.
+I calculated the average, and used a sigma of 0.25 in each direction to find a min and max.
+From those values, I got a lower and upper threshold; 0.25 sigma seemed to work the best.
+
+![alt text][image3]
+
+Fourth, I used the Hough Transform to find the lanes in the images. I decided on a threshold
+of 50 to include less designated lane markers (were due to shadows and road color). I set the
+minimum line length to 10 so smaller lines would be discarded and only lane markers would be
+outputted. Also, I set the maximum line gap to 2 (a small number) since some of the lane
+markers were broken up into a couple lines with small pixels between them.
+
+![alt text][image4]
+
+To draw a single line on the left and right lanes, I modified the draw_lines() 
+function by dividing the lines input into either left or right and then averaging the
+values into one line. Now with an average for each side, I calculated the slope of each
+line and then extended the line to the x intercept and to 65% of the vertical size. My
+function calculated the x-intercepts for each line by manipulating the point-slope
+equation, and then calculated the x value for the corresponding 65% y value. The
+function could then send the two points for each line to cv2.line().
+
+![alt text][image5]
+![alt text][image6]
+
+### 2. Identify potential shortcomings with your current pipeline
 
 
-Creating a Great Writeup
----
-For this project, a great writeup should provide a detailed response to the "Reflection" section of the [project rubric](https://review.udacity.com/#!/rubrics/322/view). There are three parts to the reflection:
+There are a few shortcomings to my pipeline. The first shortcoming would be that the
+pipeline is tuned for yellow and white lane markers. This was used to discard any gray
+or shadows that were causing issues for the Canny Edge detector. If the lane markers'
+paint is wearing off or some exotic color for some reason, like blue, the pipeline
+would filter them out.
 
-1. Describe the pipeline
+Another shortcoming is that my pipeline latches the previous frame's lane positions
+in case it cannot find lane markers for the current frame. Since the lanes do not
+move much from frame to frame, this is usually fine. However, if the pipeline can
+not find lanes in the first image, it wouldn't draw anything since there is no
+previous lanes latched; this was not the case for any of the three videos.
 
-2. Identify any shortcomings
+Building on the previous shortcoming, the pipeline could produce incorrect lines if
+it cannot find any new lanes for a non-negligible number of frames. For example, if
+the pipeline could not find any new lines for five seconds or about 150 frames, it would
+use the last lines found (five seconds ago) and these could be off enough to notice.
+However, in practice, it would be hard for this case to happen.
 
-3. Suggest possible improvements
-
-We encourage using images in your writeup to demonstrate how your pipeline works.  
-
-All that said, please be concise!  We're not looking for you to write a book here: just a brief description.
-
-You're not required to use markdown for your writeup.  If you use another method please just submit a pdf of your writeup. Here is a link to a [writeup template file](https://github.com/udacity/CarND-LaneLines-P1/blob/master/writeup_template.md). 
+Lastly, this whole pipeline assumes the camera is stationary and would not move. If
+for some reason the camera were to move, the region mask would distort every subsequent
+step in the pipeline.
 
 
-The Project
----
+### 3. Suggest possible improvements to your pipeline
 
-## If you have already installed the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) you should be good to go!   If not, you should install the starter kit to get started on this project. ##
+A possible improvement would be to adjust the image to remove shadows rather than
+only allowing yellow and white colors for the case of wearing paint and exotic lane
+marker colors. This would help eliminate many of the lines found by the Canny Edge
+detector that were from shadows. Another way to remove these, would be to filter
+out any horizontal lines since the lane markers should only be vertical (with some 
+slant); so, filter out any lines not within a subset of slopes.
 
-**Step 1:** Set up the [CarND Term1 Starter Kit](https://classroom.udacity.com/nanodegrees/nd013/parts/fbf77062-5703-404e-b60c-95b78b2f3f9e/modules/83ec35ee-1e02-48a5-bdb7-d244bd47c2dc/lessons/8c82408b-a217-4d09-b81d-1bda4c6380ef/concepts/4f1870e0-3849-43e4-b670-12e6f2d4b7a7) if you haven't already.
-
-**Step 2:** Open the code in a Jupyter Notebook
-
-You will complete the project code in a Jupyter notebook.  If you are unfamiliar with Jupyter Notebooks, check out <A HREF="https://www.packtpub.com/books/content/basics-jupyter-notebook-and-python" target="_blank">Cyrille Rossant's Basics of Jupyter Notebook and Python</A> to get started.
-
-Jupyter is an Ipython notebook where you can run blocks of code and see results interactively.  All the code for this project is contained in a Jupyter notebook. To start Jupyter in your browser, use terminal to navigate to your project directory and then run the following command at the terminal prompt (be sure you've activated your Python 3 carnd-term1 environment as described in the [CarND Term1 Starter Kit](https://github.com/udacity/CarND-Term1-Starter-Kit/blob/master/README.md) installation instructions!):
-
-`> jupyter notebook`
-
-A browser window will appear showing the contents of the current directory.  Click on the file called "P1.ipynb".  Another browser window will appear displaying the notebook.  Follow the instructions in the notebook to complete the project.  
-
-**Step 3:** Complete the project and submit both the Ipython notebook and the project writeup
-
+Another possible improvement would include making the latch mechanism more robust.
+So, averaging the lane markers from previous frames with current rather than just
+using the new frame's lanes would smooth out the lines superimposed on the videos to make it look less jerky.
